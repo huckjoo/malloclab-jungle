@@ -75,12 +75,13 @@ team_t team = {
 
 static void *coalesce(void *bp);
 static void *extend_heap(size_t words);
-static void *find_fit(size_t asize);
+static void *next_fit(size_t asize);
 static void place(void *bp, size_t asize);
 /* 
  * mm_init - initialize the malloc package.
  */
 static char *heap_listp; //prolouge사이를 가리키는 놈
+static char *last_bp;
 int mm_init(void)
 {
     //Create the initial empty heap
@@ -94,6 +95,7 @@ int mm_init(void)
     // Extend the empty heap with a free block of CHUNKSIZE bytes
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) //word가 몇개인지 확인해서 넣으려고
         return -1;
+    last_bp = (char *)heap_listp;//***************************************************처음에 heap_listp 즉 맨 처음 heap 부분을 last_bp에 저장시킴
     return 0;
 }
 //연결
@@ -104,6 +106,7 @@ static void *coalesce(void *bp)
     size_t size = GET_SIZE(HDRP(bp));
     // case 1
     if (prev_alloc && next_alloc){
+        last_bp = bp; //***************************************************계속 last_bp를 저장시킴
         return bp;
     }
     // case 2
@@ -127,6 +130,7 @@ static void *coalesce(void *bp)
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size,0));
         bp = PREV_BLKP(bp); //bp를 prev로 옮겨줌
     }
+    last_bp = bp;//***************************************************coalesce 후 bp를 반환하는데, 그걸 last_bp에 저장시킴 
     return bp;
 }
 // heap을 CHUNKSIZE byte로 확장하고 초기 가용 블록을 생성한다.
@@ -153,15 +157,26 @@ static void *extend_heap(size_t words)
     // Coalesce(연결후 합침) if the previous block was free
     return coalesce(bp);
 }
-// find_fit함수, frist-fit으로 구현
-static void *find_fit(size_t asize){
-    void *bp;
+// next_fit함수, next-fit으로 구현
+static void *next_fit(size_t asize){
+    char *bp = last_bp; //***************************************************init할 때 이미 last_bp를 설정하기 때문에 bp에 그 값을 넣어줌 
 
-    for(bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){
-        if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-            return bp;
+    for(bp = NEXT_BLKP(bp); GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){ // last_bp의 다음bp 부터 시작, 블록 size가 0보다 크면 계속 진행, bp는 nextbp로 계속 옮겨감
+        if(!GET_ALLOC(HDRP(bp)) && GET_SIZE(HDRP(bp)) >= asize){ // free block, asize보다 큰 블록은 
+            last_bp = bp;//**************************************************** last_bp에 저장
+            return bp; // ***************************************************** 그 bp를 return
         }
     }
+    //*****************************************************return 에 걸리지 않았다는 것은, 마지막 last_bp부터 돌렸을 때, 
+    //*************************************************끝까지 갔는데 fit을 찾을 수 없다는 뜻이고, 그럼 맨 처음부터 찾아야한다.(중간에 free된 블럭에 fit될수있음)
+    bp = heap_listp;//**********************************맨 첨부터 돌릴꺼다.
+    while(bp < last_bp){//**********************************last_bp전까지만 돌린다.
+        bp = NEXT_BLKP(bp);
+        if(!GET_ALLOC(HDRP(bp)) && GET_SIZE(HDRP(bp)) >= asize){
+            last_bp = bp;
+            return bp;
+        }
+    }//**********************************여기에 걸리지 않았다면,
     return NULL; // No fit
 }
 //place 함수
@@ -201,8 +216,9 @@ void *mm_malloc(size_t size)
         asize = DSIZE * ((size+(DSIZE)+(DSIZE-1)) / DSIZE);
 
     //Search the free list for a fit - 적절한 가용(free)블록을 가용리스트에서 검색
-    if((bp = find_fit(asize))!=NULL){
+    if((bp = next_fit(asize))!=NULL){
         place(bp,asize); //가능하면 초과부분 분할
+        last_bp = bp; //********************************** 만약 검색된 놈이 있으면 last_bp에 넣음
         return bp;
     }
 
@@ -212,15 +228,6 @@ void *mm_malloc(size_t size)
         return NULL;
     place(bp,asize);
     return bp;
-
-    // int newsize = ALIGN(size + SIZE_T_SIZE);
-    // void *p = mem_sbrk(newsize);
-    // if (p == (void *)-1)
-	// return NULL;
-    // else {
-    //     *(size_t *)p = size;
-    //     return (void *)((char *)p + SIZE_T_SIZE);
-    // }
 }
 
 /*
@@ -246,11 +253,12 @@ void *mm_realloc(void *ptr, size_t size)
     newptr = mm_malloc(size);
     if (newptr == NULL)
       return NULL;
-    // copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    copySize = GET_SIZE(HDRP(oldptr));
+    copySize = GET_SIZE(HDRP(oldptr));//copySize는 우리가 바꾸고 싶은 블록의 size이다.
     if (size < copySize)
       copySize = size;
     memcpy(newptr, oldptr, copySize);
+    //메모리의 특정한 부분으로부터 얼마까지의 부분을 다른 메모리 영역으로
+    // 복사해주는 함수(old_ptr로부터 copySize만큼의 문자를 newptr로 복사해라)
     mm_free(oldptr);
     return newptr;
 }
