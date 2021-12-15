@@ -91,7 +91,7 @@ int mm_init(void)
     PUT(heap_listp + (2*WSIZE), PACK(DSIZE,1)); // P.F 8/1
     PUT(heap_listp + (3*WSIZE), PACK(0,1));     // E.H(헤더로만 구성) 0/1
     heap_listp += (2*WSIZE); // 처음에 항상 prolouge 사이를 가리킴
-    // Extend the empty heap with a free block of CHUNKSIZE bytes
+    // 나중에 find_fit 함수에서 find할 때 사용됨
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) //word가 몇개인지 확인해서 넣으려고
         return -1;
     return 0;
@@ -146,7 +146,7 @@ static void *extend_heap(size_t words)
         return NULL;
     
     // Initialize free block header/footer and the epilogue header
-    PUT(HDRP(bp), PACK(size,0)); // Free block header
+    PUT(HDRP(bp), PACK(size,0)); // Free block header(bp에서 -word로 header자리 가서 에필로그 자리에 넣게 된다.)
     PUT(FTRP(bp), PACK(size,0)); // Free block footer
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0,1)); // New epilogue header
 
@@ -212,15 +212,6 @@ void *mm_malloc(size_t size)
         return NULL;
     place(bp,asize);
     return bp;
-
-    // int newsize = ALIGN(size + SIZE_T_SIZE);
-    // void *p = mem_sbrk(newsize);
-    // if (p == (void *)-1)
-	// return NULL;
-    // else {
-    //     *(size_t *)p = size;
-    //     return (void *)((char *)p + SIZE_T_SIZE);
-    // }
 }
 
 /*
@@ -254,7 +245,6 @@ void *mm_realloc(void *ptr, size_t size)
     mm_free(oldptr);
     return newptr;
 }
-
 
 
 

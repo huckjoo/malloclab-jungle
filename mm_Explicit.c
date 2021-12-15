@@ -77,7 +77,7 @@ team_t team = {
 #define PREC_FREEP(bp) (*(void**)(bp))
 #define SUCC_FREEP(bp) (*(void**)(bp + WSIZE))
 
-static void *heap_listp = NULL; // heap pointer - prolouge사이를 가리키는 놈
+static void *heap_listp = NULL; // heap 시작주소 pointer
 static void *free_listp = NULL; // free list head - 가용리스트 시작부분
 
 static void *coalesce(void *bp);
@@ -115,7 +115,7 @@ static void *coalesce(void *bp)
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp))); //다음 블록이 할당되었는지 아닌지 0 or 1
     size_t size = GET_SIZE(HDRP(bp)); //현재 블록 사이즈 
     // @@@@ explicit에서 추가 @@@@
-    // case 1 - freelist에 존재하던 블록은 연결하기 전에 freelist에서 제거
+    // case 1 - 가용블록이 없으면 조건을 추가할 필요 없다. 맨 밑에서 freelist에 넣어줌
     // case 2
     if(prev_alloc && !next_alloc){
         removeBlock(NEXT_BLKP(bp)); // @@@@ explicit에서 추가 @@@@
@@ -287,6 +287,8 @@ void *mm_realloc(void *bp, size_t size){
     if(size < oldsize){
     	oldsize = size; 
 	}
+    // 메모리의 특정한 부분으로부터 얼마까지의 부분을 다른 메모리 영역으로
+    // 복사해주는 함수(bp로부터 oldsize만큼의 문자를 newp로 복사해라)
     memcpy(newp, bp, oldsize); 
     mm_free(bp);
     return newp;
