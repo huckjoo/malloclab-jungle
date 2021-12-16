@@ -74,7 +74,7 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
 // @@@@ explicit에서 추가 @@@@
-#define PREC_FREEP(bp) (*(void**)(bp))
+#define PRED_FREEP(bp) (*(void**)(bp))
 #define SUCC_FREEP(bp) (*(void**)(bp + WSIZE))
 
 static void *heap_listp = NULL; // heap 시작주소 pointer
@@ -102,7 +102,7 @@ int mm_init(void)
     PUT(heap_listp + 4*WSIZE,PACK(16,1)); // 프롤로그 풋터 16/1
     PUT(heap_listp + 5*WSIZE,PACK(0,1)); // 에필로그 헤더 0/1
 
-    free_listp = heap_listp + DSIZE; // free_listp를 PREC 포인터 가리키게 초기화 ***왜?
+    free_listp = heap_listp + DSIZE; // free_listp를 PRED 포인터 가리키게 초기화
     // Extend the empty heap with a free block of CHUNKSIZE bytes
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) //word가 몇개인지 확인해서 넣으려고(DSIZE로 나눠도 됨)
         return -1;
@@ -241,19 +241,19 @@ void *mm_malloc(size_t size)
 // LIFO 방식으로 새로 반환되거나 생성된 가용 블록을 가용리스트 맨 앞에 추가
 void putFreeBlock(void *bp){
     SUCC_FREEP(bp) = free_listp;
-    PREC_FREEP(bp) = NULL;
-    PREC_FREEP(free_listp) = bp;
+    PRED_FREEP(bp) = NULL;
+    PRED_FREEP(free_listp) = bp;
     free_listp = bp;
 }
 // free list 맨 앞에 프롤로그 블록이 존재
 void removeBlock(void *bp){
     // 첫 번째 블록을 없앨 때
     if(bp == free_listp){
-        PREC_FREEP(SUCC_FREEP(bp)) = NULL;
+        PRED_FREEP(SUCC_FREEP(bp)) = NULL;
         free_listp = SUCC_FREEP(bp);
     }else{
-        SUCC_FREEP(PREC_FREEP(bp)) = SUCC_FREEP(bp);
-        PREC_FREEP(SUCC_FREEP(bp)) = PREC_FREEP(bp);
+        SUCC_FREEP(PRED_FREEP(bp)) = SUCC_FREEP(bp);
+        PRED_FREEP(SUCC_FREEP(bp)) = PRED_FREEP(bp);
     }
 }
 
